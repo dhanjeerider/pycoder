@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useFormState } from 'react-dom';
-import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput, Check, X } from 'lucide-react';
+import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput, Check, X, File as FileIcon, Plus, MoreVertical } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -16,8 +16,14 @@ import { handleGenerateComments, handleGenerateTestCases, handleChat, handleSugg
 import { PythonIcon } from './icons';
 import { Separator } from './ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
-const initialCode = `def greet(name):
+const initialFiles = [
+  {
+    id: 1,
+    name: 'main.py',
+    content: `def greet(name):
     """
     This function greets the person passed in as a parameter.
     """
@@ -28,7 +34,15 @@ greet("PyRunner User")
 # You can't install packages or run shell commands.
 # Try adding 'import sys' and 'print(sys.version)' to see a simulated output.
 # You can also try 'error' to see a simulated error.
-`;
+`,
+  },
+];
+
+type File = {
+  id: number;
+  name: string;
+  content: string;
+};
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -79,7 +93,8 @@ function ChatMessageContent({ content, onInsertCode }: { content: string, onInse
 }
 
 export function PyRunner() {
-  const [code, setCode] = useState(initialCode);
+  const [files, setFiles] = useState<File[]>(initialFiles);
+  const [activeFileId, setActiveFileId] = useState<number>(1);
   const [output, setOutput] = useState('Click "Run" to see the output of your code.');
   const [consoleOutput, setConsoleOutput] = useState('This is a simulated console. Code is not actually executed.');
   const [isError, setIsError] = useState(false);
@@ -88,6 +103,18 @@ export function PyRunner() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [isChatOpen, setChatOpen] = useState(false);
+
+  const activeFile = files.find(f => f.id === activeFileId);
+  const code = activeFile?.content ?? '';
+  const setCode = (newContent: string | ((prev: string) => string)) => {
+    setFiles(files.map(f => {
+      if (f.id === activeFileId) {
+        const content = typeof newContent === 'function' ? newContent(f.content) : newContent;
+        return { ...f, content };
+      }
+      return f;
+    }));
+  };
 
   const [testCasesState, testCasesAction] = useFormState(handleGenerateTestCases, { message: '' });
   const [isTestCasesPending, startTestCasesTransition] = useTransition();
@@ -151,7 +178,7 @@ export function PyRunner() {
   const handleRunCode = () => {
     setIsError(false);
     setOutput('');
-    setConsoleOutput('Executing code...');
+    setConsoleOutput(`Executing ${activeFile?.name || 'file'}...`);
     
     const trimmedCode = code.trim();
 
@@ -174,7 +201,7 @@ export function PyRunner() {
     }
 
     if (code.toLowerCase().includes('error')) {
-      const errorMsg = 'Traceback (most recent call last):\n  File "<stdin>", line 1, in <module>\nNameError: name \'error\' is not defined';
+      const errorMsg = `Traceback (most recent call last):\n  File "${activeFile?.name}", line 1, in <module>\nNameError: name 'error' is not defined`;
       setOutput(errorMsg);
       setConsoleOutput('Execution finished with error.');
       setIsError(true);
@@ -189,9 +216,6 @@ export function PyRunner() {
 
   const handleClear = () => {
     setCode('');
-    setOutput('Click "Run" to see the output of your code.');
-    setConsoleOutput('This is a simulated console. Code is not actually executed.');
-    setIsError(false);
     setSuggestion(null);
   };
   
@@ -238,6 +262,31 @@ export function PyRunner() {
     setCode(prev => prev + '\n' + codeToInsert);
     toast({ title: 'Code Inserted', description: 'The code has been added to the editor.' });
   }
+
+  const handleNewFile = () => {
+    const newFileName = `file${files.length + 1}.py`;
+    const newFile: File = {
+      id: Date.now(),
+      name: newFileName,
+      content: `# ${newFileName}\n`,
+    };
+    setFiles([...files, newFile]);
+    setActiveFileId(newFile.id);
+    toast({title: 'File Created', description: `New file "${newFileName}" created.`});
+  };
+
+  const handleDeleteFile = (fileId: number) => {
+    if (files.length === 1) {
+      toast({variant: 'destructive', title: 'Cannot Delete', description: 'You must have at least one file.'});
+      return;
+    }
+    const fileToDelete = files.find(f => f.id === fileId);
+    setFiles(files.filter(f => f.id !== fileId));
+    if (activeFileId === fileId) {
+      setActiveFileId(files[0].id);
+    }
+    toast({title: 'File Deleted', description: `File "${fileToDelete?.name}" deleted.`});
+  };
 
   const ChatPanel = () => (
     <Card className="h-full flex flex-col rounded-none border-0 border-t">
@@ -302,6 +351,43 @@ export function PyRunner() {
      </Card>
   );
 
+  const FileExplorer = () => (
+    <Collapsible defaultOpen className="h-full flex flex-col">
+      <CollapsibleTrigger className="flex items-center justify-between p-2 bg-muted/50 border-b">
+        <span className="font-semibold text-sm">Explorer</span>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleNewFile}>
+          <Plus className="h-4 w-4"/>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="flex-1 overflow-y-auto">
+        {files.map(file => (
+          <div key={file.id} className={`flex items-center justify-between pr-2 group ${activeFileId === file.id ? 'bg-primary/10' : ''}`}>
+            <button
+              onClick={() => setActiveFileId(file.id)}
+              className="flex items-center gap-2 p-2 text-sm flex-1 text-left hover:bg-muted"
+            >
+              <FileIcon className="h-4 w-4" />
+              <span>{file.name}</span>
+            </button>
+             <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100">
+                  <MoreVertical className="h-4 w-4"/>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleDeleteFile(file.id)} className="text-red-500">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  <span>Delete</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+
   return (
     <div className="flex flex-col h-screen bg-background text-sm">
       <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[50px] lg:px-6">
@@ -335,145 +421,153 @@ export function PyRunner() {
           </div>
       </header>
       <main className='flex-1 flex flex-col'>
-      <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
-        <ResizablePanel defaultSize={60} minSize={isMobile ? 30 : 25}>
-          <div className="flex flex-col h-full">
-            <div className="flex-1">
-              <Textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="Enter your Python code here..."
-                className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
-              />
-            </div>
-            {suggestion && (
-              <div className="bg-muted/70 p-4 border-t relative">
-                <Label className="text-xs font-bold text-muted-foreground">AI SUGGESTION</Label>
-                <pre className="font-code text-xs mt-2 bg-background p-2 rounded-md max-h-40 overflow-auto">
-                  <code>{suggestion}</code>
-                </pre>
-                <div className="absolute top-3 right-3 flex gap-1">
-                  <Button size="icon" className="h-7 w-7 bg-green-500 hover:bg-green-600" onClick={handleAcceptSuggestion}>
-                    <Check className="h-4 w-4" />
-                  </Button>
-                   <Button size="icon" variant="destructive" className="h-7 w-7" onClick={handleRejectSuggestion}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+      <ResizablePanelGroup direction="horizontal" className="flex-1 w-full h-full">
+        <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="hidden md:block">
+            <FileExplorer />
         </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={40} minSize={isMobile ? 40: 30}>
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel defaultSize={isMobile ? 50 : 60} minSize={isMobile ? 40 : 25}>
-              <Tabs defaultValue="output" className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="output"><FileOutput className="mr-1 h-4 w-4" />Output</TabsTrigger>
-                  <TabsTrigger value="console"><TerminalIcon className="mr-1 h-4 w-4" />Console</TabsTrigger>
-                  <TabsTrigger value="tests"><TestTube className="mr-1 h-4 w-4" />Tests</TabsTrigger>
-                  <TabsTrigger value="comments"><Sparkles className="mr-1 h-4 w-4" />Comments</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="output" className="flex-grow mt-2">
-                  <Card className="h-full rounded-none border-0 border-t">
-                    <CardHeader className="py-2 px-4">
-                      <CardTitle className="text-base">Output</CardTitle>
-                      <CardDescription className="text-xs">Output from `print` statements in your code.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
-                        <code className={`font-code text-xs whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
-                          {output}
-                        </code>
-                      </pre>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="console" className="flex-grow mt-2">
-                  <Card className="h-full rounded-none border-0 border-t">
-                    <CardHeader className="py-2 px-4">
-                      <CardTitle className="text-base">Console</CardTitle>
-                      <CardDescription className="text-xs">Simulated execution logs. Code is not actually executed.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
-                        <code className="font-code text-xs whitespace-pre-wrap text-muted-foreground">
-                          {consoleOutput}
-                        </code>
-                      </pre>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="tests" className="flex-grow mt-2">
-                  <Card className="h-full rounded-none border-0 border-t">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2"><Bot /> Generate Test Cases</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <form action={(formData) => startTestCasesTransition(() => testCasesAction(formData))} className="space-y-4">
-                        <input type="hidden" name="code" value={code} />
-                        <div className="space-y-2">
-                          <Label htmlFor="documentation">Documentation (Optional)</Label>
-                          <Textarea id="documentation" name="documentation" placeholder="Provide documentation or context for your code..." className="font-code text-xs" />
-                        </div>
-                        <Button type="submit" disabled={isTestCasesPending} size="sm">
-                          {isTestCasesPending ? 'Generating...' : 'Generate Tests'}
-                        </Button>
-                      </form>
-                      {testCasesState?.testCases && (
-                         <div className="space-y-2 pt-4">
-                          <Label>Generated Test Cases</Label>
-                           <pre className="bg-muted rounded-md p-4 max-h-[40vh] overflow-auto">
-                             <code className="font-code text-xs whitespace-pre-wrap">{testCasesState.testCases}</code>
-                           </pre>
-                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="comments" className="flex-grow mt-2">
-                  <Card className="h-full rounded-none border-0 border-t">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2"><Bot /> Generate Comments</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                       <form action={(formData) => startCommentsTransition(() => commentsAction(formData))} className="space-y-4">
-                         <input type="hidden" name="pythonCode" value={code} />
-                         <div className="space-y-2">
-                           <Label htmlFor="projectRequirements">Project Requirements</Label>
-                           <Textarea id="projectRequirements" name="projectRequirements" placeholder="e.g., 'Add docstrings to all functions...'" className="font-code text-xs" />
-                         </div>
-                         <Button type="submit" disabled={isCommentsPending} size="sm">
-                          {isCommentsPending ? 'Generating...' : 'Generate Comments'}
-                        </Button>
-                       </form>
-                       {isCommentsPending && <p className="text-xs text-muted-foreground">Generating comments...</p>}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+        <ResizableHandle withHandle className="hidden md:flex" />
+        <ResizablePanel defaultSize={80}>
+          <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
+            <ResizablePanel defaultSize={60} minSize={isMobile ? 30 : 25}>
+              <div className="flex flex-col h-full">
+                <div className="flex-1">
+                  <Textarea
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="Enter your Python code here..."
+                    className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
+                  />
+                </div>
+                {suggestion && (
+                  <div className="bg-muted/70 p-4 border-t relative">
+                    <Label className="text-xs font-bold text-muted-foreground">AI SUGGESTION</Label>
+                    <pre className="font-code text-xs mt-2 bg-background p-2 rounded-md max-h-40 overflow-auto">
+                      <code>{suggestion}</code>
+                    </pre>
+                    <div className="absolute top-3 right-3 flex gap-1">
+                      <Button size="icon" className="h-7 w-7 bg-green-500 hover:bg-green-600" onClick={handleAcceptSuggestion}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="destructive" className="h-7 w-7" onClick={handleRejectSuggestion}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </ResizablePanel>
-            
-            {!isMobile && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={40} minSize={25}>
-                  <ChatPanel />
-                </ResizablePanel>
-              </>
-            )}
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={40} minSize={isMobile ? 40: 30}>
+              <ResizablePanelGroup direction="vertical">
+                <ResizablePanel defaultSize={isMobile ? 50 : 60} minSize={isMobile ? 40 : 25}>
+                  <Tabs defaultValue="output" className="h-full flex flex-col">
+                    <TabsList className="grid w-full grid-cols-4">
+                      <TabsTrigger value="output"><FileOutput className="mr-1 h-4 w-4" />Output</TabsTrigger>
+                      <TabsTrigger value="console"><TerminalIcon className="mr-1 h-4 w-4" />Console</TabsTrigger>
+                      <TabsTrigger value="tests"><TestTube className="mr-1 h-4 w-4" />Tests</TabsTrigger>
+                      <TabsTrigger value="comments"><Sparkles className="mr-1 h-4 w-4" />Comments</TabsTrigger>
+                    </TabsList>
 
+                    <TabsContent value="output" className="flex-grow mt-2">
+                      <Card className="h-full rounded-none border-0 border-t">
+                        <CardHeader className="py-2 px-4">
+                          <CardTitle className="text-base">Output</CardTitle>
+                          <CardDescription className="text-xs">Output from `print` statements in your code.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
+                            <code className={`font-code text-xs whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
+                              {output}
+                            </code>
+                          </pre>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="console" className="flex-grow mt-2">
+                      <Card className="h-full rounded-none border-0 border-t">
+                        <CardHeader className="py-2 px-4">
+                          <CardTitle className="text-base">Console</CardTitle>
+                          <CardDescription className="text-xs">Simulated execution logs. Code is not actually executed.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
+                            <code className="font-code text-xs whitespace-pre-wrap text-muted-foreground">
+                              {consoleOutput}
+                            </code>
+                          </pre>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="tests" className="flex-grow mt-2">
+                      <Card className="h-full rounded-none border-0 border-t">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2"><Bot /> Generate Test Cases</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <form action={(formData) => startTestCasesTransition(() => testCasesAction(formData))} className="space-y-4">
+                            <input type="hidden" name="code" value={code} />
+                            <div className="space-y-2">
+                              <Label htmlFor="documentation">Documentation (Optional)</Label>
+                              <Textarea id="documentation" name="documentation" placeholder="Provide documentation or context for your code..." className="font-code text-xs" />
+                            </div>
+                            <Button type="submit" disabled={isTestCasesPending} size="sm">
+                              {isTestCasesPending ? 'Generating...' : 'Generate Tests'}
+                            </Button>
+                          </form>
+                          {testCasesState?.testCases && (
+                            <div className="space-y-2 pt-4">
+                              <Label>Generated Test Cases</Label>
+                              <pre className="bg-muted rounded-md p-4 max-h-[40vh] overflow-auto">
+                                <code className="font-code text-xs whitespace-pre-wrap">{testCasesState.testCases}</code>
+                              </pre>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="comments" className="flex-grow mt-2">
+                      <Card className="h-full rounded-none border-0 border-t">
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2"><Bot /> Generate Comments</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <form action={(formData) => startCommentsTransition(() => commentsAction(formData))} className="space-y-4">
+                            <input type="hidden" name="pythonCode" value={code} />
+                            <div className="space-y-2">
+                              <Label htmlFor="projectRequirements">Project Requirements</Label>
+                              <Textarea id="projectRequirements" name="projectRequirements" placeholder="e.g., 'Add docstrings to all functions...'" className="font-code text-xs" />
+                            </div>
+                            <Button type="submit" disabled={isCommentsPending} size="sm">
+                              {isCommentsPending ? 'Generating...' : 'Generate Comments'}
+                            </Button>
+                          </form>
+                          {isCommentsPending && <p className="text-xs text-muted-foreground">Generating comments...</p>}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  </Tabs>
+                </ResizablePanel>
+                
+                {!isMobile && (
+                  <>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel defaultSize={40} minSize={25}>
+                      <ChatPanel />
+                    </ResizablePanel>
+                  </>
+                )}
+
+              </ResizablePanelGroup>
+            </ResizablePanel>
           </ResizablePanelGroup>
         </ResizablePanel>
       </ResizablePanelGroup>
       </main>
 
-       {isMobile && (
+      {isMobile && (
         <Dialog open={isChatOpen} onOpenChange={setChatOpen}>
           <DialogContent className="h-[80vh] w-[90vw] max-w-[90vw] flex flex-col p-0 gap-0">
              <ChatPanel />
