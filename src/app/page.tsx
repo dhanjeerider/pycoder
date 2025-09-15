@@ -1,3 +1,9 @@
+import { PyRunner } from "@/components/py-runner";
+
 export default function Home() {
-  return <></>;
+  return (
+    <main className="min-h-screen bg-background">
+      <PyRunner />
+    </main>
+  );
 }
