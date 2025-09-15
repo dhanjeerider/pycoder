@@ -24,7 +24,10 @@ const initialCode = `def greet(name):
     print(f"Hello, {name}!")
 
 greet("PyRunner User")
-# Try adding 'error' to this code to see error handling
+# This is a simulated environment.
+# You can't install packages or run shell commands.
+# Try adding 'import sys' and 'print(sys.version)' to see a simulated output.
+# You can also try 'error' to see a simulated error.
 `;
 
 type ChatMessage = {
@@ -77,7 +80,7 @@ function ChatMessageContent({ content, onInsertCode }: { content: string, onInse
 
 export function PyRunner() {
   const [code, setCode] = useState(initialCode);
-  const [output, setOutput] = useState('');
+  const [output, setOutput] = useState('Click "Run" to see the output of your code. This is a simulated environment and does not execute real Python code.');
   const [isError, setIsError] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const { toast } = useToast();
@@ -133,21 +136,39 @@ export function PyRunner() {
   const handleRunCode = () => {
     setIsError(false);
     setOutput('');
-    if (code.trim() === '') {
+    
+    const trimmedCode = code.trim();
+
+    if (trimmedCode === '') {
       setOutput('No code to execute.');
       return;
     }
+    
+    // Check for print statements
+    const printRegex = /print\((['"])(.*?)\1\)/g;
+    let match;
+    let printedOutput = '';
+    while ((match = printRegex.exec(code)) !== null) {
+      printedOutput += match[2] + '\n';
+    }
+
+    if (code.toLowerCase().includes('import sys') && code.toLowerCase().includes('print(sys.version)')) {
+        printedOutput += '3.12.2 (v3.12.2:6AB1243, Apr  2 2024, 15:23:54) [Clang 15.0.0 (clang-1500.3.9.4)]\n';
+    }
+
     if (code.toLowerCase().includes('error')) {
       setOutput('Traceback (most recent call last):\n  File "<stdin>", line 1, in <module>\nNameError: name \'error\' is not defined');
       setIsError(true);
+    } else if (printedOutput) {
+        setOutput(printedOutput);
     } else {
-      setOutput(`Hello from PyRunner!\nExecution successful.\n---\n(This is a mock output. Python code is not actually executed.)`);
+      setOutput(`Execution finished.\n---\n(This is a mock output. Python code is not actually executed.)`);
     }
   };
 
   const handleClear = () => {
     setCode('');
-    setOutput('');
+    setOutput('Click "Run" to see the output of your code. This is a simulated environment and does not execute real Python code.');
     setIsError(false);
   };
   
@@ -285,11 +306,12 @@ export function PyRunner() {
                   <Card className="h-full rounded-none border-0 border-t">
                     <CardHeader className="py-2 px-4">
                       <CardTitle className="text-base">Terminal</CardTitle>
+                      <CardDescription className="text-xs">This is a simulated terminal. Code is not actually executed.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                       <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
                         <code className={`font-code text-xs whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
-                          {output || 'Click "Run" to see the output of your code.'}
+                          {output}
                         </code>
                       </pre>
                     </CardContent>
