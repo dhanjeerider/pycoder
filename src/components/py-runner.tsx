@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useFormState } from 'react-dom';
-import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser } from 'lucide-react';
+import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { handleGenerateComments, handleGenerateTestCases, handleChat } from '@/app/actions';
 import { PythonIcon } from './icons';
 import { Separator } from './ui/separator';
+import { useIsMobile } from '@/hooks/use-mobile';
+
 
 const initialCode = `def greet(name):
     """
@@ -36,6 +38,7 @@ export function PyRunner() {
   const [isError, setIsError] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const [testCasesState, testCasesAction] = useFormState(handleGenerateTestCases, { message: '' });
   const [isTestCasesPending, startTestCasesTransition] = useTransition();
@@ -125,15 +128,17 @@ export function PyRunner() {
               <PythonIcon className="h-8 w-8 text-primary" />
               <h1 className="text-lg font-semibold md:text-2xl">PyRunner</h1>
           </div>
-          <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-            <div className='ml-auto flex-1 sm:flex-initial'>
+          <div className="flex w-full items-center gap-2 md:gap-4 ml-auto">
+            <div className='ml-auto'>
               <Button onClick={handleRunCode} size="sm"><Play className="mr-2 h-4 w-4" /> Run</Button>
             </div>
-            <div className='flex-initial'>
-              <Button onClick={handleCopyCode} size="sm" variant="secondary"><Copy className="mr-2 h-4 w-4" /> Copy</Button>
+            <div>
+              <Button onClick={handleCopyCode} size="sm" variant="secondary" className="hidden sm:flex"><Copy className="mr-2 h-4 w-4" /> Copy</Button>
+               <Button onClick={handleCopyCode} size="icon" variant="secondary" className="flex sm:hidden"><Copy className="h-4 w-4" /></Button>
             </div>
-            <div className='flex-initial'>
-               <Button onClick={handleClear} size="sm" variant="secondary"><Trash2 className="mr-2 h-4 w-4" /> Clear</Button>
+            <div>
+               <Button onClick={handleClear} size="sm" variant="secondary" className="hidden sm:flex"><Trash2 className="mr-2 h-4 w-4" /> Clear</Button>
+               <Button onClick={handleClear} size="icon" variant="secondary" className="flex sm:hidden"><Trash2 className="h-4 w-4" /></Button>
             </div>
             <Separator orientation="vertical" className="h-8" />
             <CircleUser className="h-5 w-5" />
@@ -141,8 +146,8 @@ export function PyRunner() {
           </div>
       </header>
       <main className='flex-1 flex flex-col'>
-      <ResizablePanelGroup direction="horizontal" className="flex-1 w-full h-full">
-        <ResizablePanel defaultSize={60}>
+      <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
+        <ResizablePanel defaultSize={60} minSize={isMobile ? 30 : 25}>
             <Textarea
               value={code}
               onChange={(e) => setCode(e.target.value)}
@@ -151,23 +156,23 @@ export function PyRunner() {
             />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={40}>
+        <ResizablePanel defaultSize={40} minSize={isMobile ? 40: 30}>
           <ResizablePanelGroup direction="vertical">
-            <ResizablePanel defaultSize={60}>
-              <Tabs defaultValue="output" className="h-full flex flex-col">
+            <ResizablePanel defaultSize={isMobile ? 50 : 60} minSize={isMobile ? 40 : 25}>
+              <Tabs defaultValue="terminal" className="h-full flex flex-col">
                 <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="output">Output</TabsTrigger>
+                  <TabsTrigger value="terminal"><TerminalIcon className="mr-2 h-4 w-4" />Terminal</TabsTrigger>
                   <TabsTrigger value="tests"><TestTube className="mr-2 h-4 w-4" />Tests</TabsTrigger>
                   <TabsTrigger value="comments"><Sparkles className="mr-2 h-4 w-4" />Comments</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="output" className="flex-grow mt-2">
+                <TabsContent value="terminal" className="flex-grow mt-2">
                   <Card className="h-full rounded-none border-0 border-t">
-                    <CardHeader>
-                      <CardTitle>Execution Output</CardTitle>
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-base">Terminal</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <pre className="bg-muted rounded-md p-4 h-full overflow-auto">
+                    <CardContent className="p-0">
+                      <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
                         <code className={`font-code text-sm whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
                           {output || 'Click "Run" to see the output of your code.'}
                         </code>
@@ -227,7 +232,7 @@ export function PyRunner() {
               </Tabs>
             </ResizablePanel>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={40}>
+            <ResizablePanel defaultSize={isMobile ? 50 : 40} minSize={isMobile ? 30 : 25}>
                <Card className="h-full flex flex-col rounded-none border-0 border-t">
                   <CardHeader>
                     <CardTitle className='flex items-center gap-2'><Bot /> AI Coder</CardTitle>
