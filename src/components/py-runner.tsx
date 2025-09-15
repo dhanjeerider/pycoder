@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useFormState } from 'react-dom';
-import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput } from 'lucide-react';
+import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput, Check, X } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { handleGenerateComments, handleGenerateTestCases, handleChat } from '@/app/actions';
+import { handleGenerateComments, handleGenerateTestCases, handleChat, handleSuggestCode } from '@/app/actions';
 import { PythonIcon } from './icons';
 import { Separator } from './ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -84,6 +84,7 @@ export function PyRunner() {
   const [consoleOutput, setConsoleOutput] = useState('This is a simulated console. Code is not actually executed.');
   const [isError, setIsError] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [isChatOpen, setChatOpen] = useState(false);
@@ -99,6 +100,9 @@ export function PyRunner() {
 
   const [chatState, chatAction] = useFormState(handleChat, { message: '' });
   const [isChatPending, startChatTransition] = useTransition();
+
+  const [suggestionState, suggestionAction] = useFormState(handleSuggestCode, { message: '' });
+  const [isSuggestionPending, startSuggestionTransition] = useTransition();
 
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -133,6 +137,16 @@ export function PyRunner() {
         toast({ variant: 'destructive', title: 'Error Generating Test Cases', description: errorMsg });
     }
   }, [testCasesState, toast]);
+
+  useEffect(() => {
+    if (suggestionState?.message === 'success' && suggestionState.suggestion) {
+      setSuggestion(suggestionState.suggestion);
+      toast({ title: 'Suggestion Ready', description: 'AI has provided a code suggestion.' });
+    } else if (suggestionState?.message === 'An error occurred' || (suggestionState?.message === 'Invalid input' && suggestionState?.error)) {
+        const errorMsg = typeof suggestionState.error === 'string' ? suggestionState.error : 'Please check your inputs.';
+        toast({ variant: 'destructive', title: 'Error Generating Suggestion', description: errorMsg });
+    }
+  }, [suggestionState, toast]);
 
   const handleRunCode = () => {
     setIsError(false);
@@ -178,6 +192,7 @@ export function PyRunner() {
     setOutput('Click "Run" to see the output of your code.');
     setConsoleOutput('This is a simulated console. Code is not actually executed.');
     setIsError(false);
+    setSuggestion(null);
   };
   
   const handleChatSubmit = (formData: FormData) => {
@@ -187,6 +202,31 @@ export function PyRunner() {
     startChatTransition(() => chatAction(formData));
     const form = document.getElementById('chat-form') as HTMLFormElement;
     form.reset();
+  }
+  
+  const handleSuggestCodeClick = () => {
+    if (!apiKey) {
+      toast({ variant: 'destructive', title: 'API Key Required', description: 'Please enter your Gemini API key in the chat panel to use this feature.' });
+      return;
+    }
+    setSuggestion(null);
+    const formData = new FormData();
+    formData.append('apiKey', apiKey);
+    formData.append('code', code);
+    startSuggestionTransition(() => suggestionAction(formData));
+  }
+
+  const handleAcceptSuggestion = () => {
+    if (suggestion) {
+      setCode(prev => prev + suggestion);
+      setSuggestion(null);
+      toast({ title: 'Suggestion Accepted', description: 'The suggested code has been added to the editor.' });
+    }
+  }
+
+  const handleRejectSuggestion = () => {
+    setSuggestion(null);
+    toast({ title: 'Suggestion Rejected' });
   }
 
   const handleCopyCode = () => {
@@ -274,6 +314,11 @@ export function PyRunner() {
               <Button onClick={handleRunCode} size="sm"><Play className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Run</span></Button>
             </div>
             <div>
+              <Button onClick={handleSuggestCodeClick} size="sm" variant="secondary" disabled={isSuggestionPending}>
+                <Sparkles className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">{isSuggestionPending ? 'Thinking...': 'Suggest'}</span>
+              </Button>
+            </div>
+            <div>
               <Button onClick={handleCopyCode} size="sm" variant="secondary" className="hidden sm:flex"><Copy className="mr-1 h-4 w-4" /> Copy</Button>
                <Button onClick={handleCopyCode} size="icon" variant="secondary" className="flex sm:hidden"><Copy className="h-4 w-4" /></Button>
             </div>
@@ -292,12 +337,32 @@ export function PyRunner() {
       <main className='flex-1 flex flex-col'>
       <ResizablePanelGroup direction={isMobile ? "vertical" : "horizontal"} className="flex-1 w-full h-full">
         <ResizablePanel defaultSize={60} minSize={isMobile ? 30 : 25}>
-            <Textarea
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="Enter your Python code here..."
-              className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
-            />
+          <div className="flex flex-col h-full">
+            <div className="flex-1">
+              <Textarea
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter your Python code here..."
+                className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
+              />
+            </div>
+            {suggestion && (
+              <div className="bg-muted/70 p-4 border-t relative">
+                <Label className="text-xs font-bold text-muted-foreground">AI SUGGESTION</Label>
+                <pre className="font-code text-xs mt-2 bg-background p-2 rounded-md max-h-40 overflow-auto">
+                  <code>{suggestion}</code>
+                </pre>
+                <div className="absolute top-3 right-3 flex gap-1">
+                  <Button size="icon" className="h-7 w-7 bg-green-500 hover:bg-green-600" onClick={handleAcceptSuggestion}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                   <Button size="icon" variant="destructive" className="h-7 w-7" onClick={handleRejectSuggestion}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={40} minSize={isMobile ? 40: 30}>

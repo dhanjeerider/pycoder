@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { generateCommentsForPythonCode } from '@/ai/flows/generate-comments-for-python-code';
 import { generateTestCasesFromCode } from '@/ai/flows/generate-test-cases-from-code';
 import { chatWithCode } from '@/ai/flows/chat-with-code';
+import { suggestCode } from '@/ai/flows/suggest-code';
 
 const testCasesSchema = z.object({
   code: z.string().min(1, 'Code cannot be empty.'),
@@ -95,4 +96,34 @@ export async function handleChat(prevState: any, formData: FormData) {
         console.error(e);
         return { message: 'An error occurred.', error: (e as Error).message };
     }
+}
+
+const suggestCodeSchema = z.object({
+  apiKey: z.string().min(1, 'API Key is required.'),
+  code: z.string(),
+});
+
+export async function handleSuggestCode(prevState: any, formData: FormData) {
+  const validatedFields = suggestCodeSchema.safeParse({
+    apiKey: formData.get('apiKey'),
+    code: formData.get('code'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      message: 'Invalid input.',
+      error: validatedFields.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    const { apiKey, code } = validatedFields.data;
+    process.env.GEMINI_API_KEY = apiKey;
+    
+    const { suggestion } = await suggestCode({ code });
+    return { message: 'success', suggestion };
+  } catch (e) {
+    console.error(e);
+    return { message: 'An error occurred.', error: (e as Error).message };
+  }
 }
