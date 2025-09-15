@@ -104,6 +104,13 @@ export function PyRunner() {
   const isMobile = useIsMobile();
   const [isChatOpen, setChatOpen] = useState(false);
 
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('gemini-api-key');
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
+  }, []);
+
   const activeFile = files.find(f => f.id === activeFileId);
   const code = activeFile?.content ?? '';
   const setCode = (newContent: string | ((prev: string) => string)) => {
@@ -288,6 +295,11 @@ export function PyRunner() {
     toast({title: 'File Deleted', description: `File "${fileToDelete?.name}" deleted.`});
   };
 
+  const handleApiKeyChange = (key: string) => {
+    setApiKey(key);
+    localStorage.setItem('gemini-api-key', key);
+  };
+
   const ChatPanel = () => (
     <Card className="h-full flex flex-col rounded-none border-0 border-t">
        <CardHeader className="py-3 px-4">
@@ -322,7 +334,7 @@ export function PyRunner() {
          {!apiKey ? (
             <div className="space-y-2">
              <Label htmlFor="api-key">Enter your Gemini API Key</Label>
-             <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => setApiKey(e.target.value)} />
+             <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => handleApiKeyChange(e.target.value)} />
              <p className="text-xs text-muted-foreground">You can get a key from Google AI Studio.</p>
             </div>
          ) : (
