@@ -16,14 +16,14 @@ const ChatMessageSchema = z.object({
 });
 
 const ChatWithCodeInputSchema = z.object({
-  prompt: z.string().describe('The user\'s question about the code.'),
+  prompt: z.string().describe("The user's question about the code."),
   code: z.string().describe('The Python code context.'),
   chatHistory: z.array(ChatMessageSchema).describe('The history of the conversation.'),
 });
 export type ChatWithCodeInput = z.infer<typeof ChatWithCodeInputSchema>;
 
 const ChatWithCodeOutputSchema = z.object({
-  response: z.string().describe('The AI\'s response to the user\'s question.'),
+  response: z.string().describe("The AI's response to the user's question."),
 });
 export type ChatWithCodeOutput = z.infer<typeof ChatWithCodeOutputSchema>;
 
@@ -35,7 +35,12 @@ const prompt = ai.definePrompt({
   name: 'chatWithCodePrompt',
   input: {schema: ChatWithCodeInputSchema},
   output: {schema: ChatWithCodeOutputSchema},
-  prompt: `You are an expert Python developer AI assistant named Gemini. Your goal is to help users understand, debug, and improve their Python code.
+  prompt: `You are an expert Python developer AI assistant named Gemini. Your primary goal is to help users understand, debug, and improve their Python code.
+
+- Be concise and to the point.
+- When providing code examples, always use Python.
+- Use Markdown for code blocks.
+- Your response should be helpful, concise, and directly related to their question and code.
 
 You are having a conversation with a user. Here is the history of your conversation:
 {{#each chatHistory}}
@@ -50,8 +55,7 @@ Here is the user's current Python code:
 And here is the user's latest question:
 {{prompt}}
 
-Your response should be helpful, concise, and directly related to their question and code.
-If you provide code snippets, use Markdown.
+Your response:
 `,
 });
 

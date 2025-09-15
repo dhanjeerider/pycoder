@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useFormState } from 'react-dom';
-import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon } from 'lucide-react';
+import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,12 +10,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { handleGenerateComments, handleGenerateTestCases, handleChat } from '@/app/actions';
 import { PythonIcon } from './icons';
 import { Separator } from './ui/separator';
 import { useIsMobile } from '@/hooks/use-mobile';
-
 
 const initialCode = `def greet(name):
     """
@@ -32,6 +32,49 @@ type ChatMessage = {
   content: string;
 };
 
+function ChatCodeBlock({ code, onInsert }: { code: string, onInsert: (code: string) => void }) {
+  const { toast } = useToast();
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    toast({ title: 'Copied!', description: 'Code block copied to clipboard.' });
+  };
+  return (
+    <div className="bg-muted p-2 rounded-md my-2 relative">
+      <pre className="font-code text-sm overflow-x-auto">
+        <code>{code}</code>
+      </pre>
+      <div className="absolute top-2 right-2 flex gap-1">
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
+          <Copy className="h-3 w-3" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onInsert(code)}>
+          <Keyboard className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ChatMessageContent({ content, onInsertCode }: { content: string, onInsertCode: (code: string) => void }) {
+    if (!content.includes('```')) {
+        return <p className="text-sm">{content}</p>;
+    }
+
+    const parts = content.split(/(```[\s\S]*?```)/g).filter(part => part.trim() !== '');
+
+    return (
+        <div>
+            {parts.map((part, index) => {
+                if (part.startsWith('```') && part.endsWith('```')) {
+                    const code = part.replace(/```(python|)\n/g, '').replace(/```/g, '');
+                    return <ChatCodeBlock key={index} code={code} onInsert={onInsertCode} />;
+                }
+                return <p key={index} className="text-sm">{part}</p>;
+            })}
+        </div>
+    );
+}
+
 export function PyRunner() {
   const [code, setCode] = useState(initialCode);
   const [output, setOutput] = useState('');
@@ -39,6 +82,7 @@ export function PyRunner() {
   const [apiKey, setApiKey] = useState('');
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const [isChatOpen, setChatOpen] = useState(false);
 
   const [testCasesState, testCasesAction] = useFormState(handleGenerateTestCases, { message: '' });
   const [isTestCasesPending, startTestCasesTransition] = useTransition();
@@ -121,28 +165,99 @@ export function PyRunner() {
     toast({ title: "Copied!", description: "Code has been copied to clipboard."});
   }
 
+  const handleInsertCode = (codeToInsert: string) => {
+    setCode(prev => prev + '\n' + codeToInsert);
+    toast({ title: 'Code Inserted', description: 'The code has been added to the editor.' });
+  }
+
+  const ChatPanel = () => (
+    <Card className="h-full flex flex-col rounded-none border-0 border-t">
+       <CardHeader className="py-3 px-4">
+         <CardTitle className='flex items-center gap-2 text-lg'><Bot /> AI Coder</CardTitle>
+         <CardDescription>Chat with Gemini to get help with your code.</CardDescription>
+       </CardHeader>
+       <CardContent ref={chatContainerRef} className="flex-1 overflow-y-auto pr-2 space-y-4 px-4">
+         {chatHistory.length === 0 && (
+           <div className="flex items-center justify-center h-full text-muted-foreground">
+             <p>Ask me anything about your code!</p>
+           </div>
+         )}
+         {chatHistory.map((msg, index) => (
+           <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+             {msg.role === 'assistant' && <div className="p-2 rounded-full bg-primary"><Bot className="h-4 w-4 text-primary-foreground" /></div>}
+             <div className={`rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                <ChatMessageContent content={msg.content} onInsertCode={handleInsertCode} />
+             </div>
+              {msg.role === 'user' && <div className="p-2 rounded-full bg-muted"><CircleUser className="h-4 w-4 text-muted-foreground" /></div>}
+           </div>
+         ))}
+         {isChatPending && (
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-full bg-primary"><Bot className="h-4 w-4 text-primary-foreground" /></div>
+              <div className="rounded-lg px-3 py-2 bg-muted">
+                <p className="text-sm animate-pulse">Thinking...</p>
+              </div>
+            </div>
+         )}
+       </CardContent>
+       <div className="p-4 border-t">
+         {!apiKey ? (
+            <div className="space-y-2">
+             <Label htmlFor="api-key">Enter your Gemini API Key</Label>
+             <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => setApiKey(e.target.value)} />
+             <p className="text-xs text-muted-foreground">You can get a key from Google AI Studio.</p>
+            </div>
+         ) : (
+           <form id="chat-form" action={handleChatSubmit} className="relative">
+             <input type="hidden" name="apiKey" value={apiKey} />
+             <input type="hidden" name="chatHistory" value={JSON.stringify(chatHistory)} />
+             <input type="hidden" name="code" value={code} />
+             <Textarea
+               name="prompt"
+               placeholder="Ask a question..."
+               className="pr-12 resize-none"
+               rows={1}
+               onKeyDown={(e) => {
+                 if (e.key === 'Enter' && !e.shiftKey) {
+                   e.preventDefault();
+                   (e.target as HTMLTextAreaElement).form?.requestSubmit();
+                 }
+               }}
+             />
+             <Button type="submit" size="icon" className="absolute top-1/2 -translate-y-1/2 right-2 h-8 w-8" disabled={isChatPending}>
+               <Send className="h-4 w-4" />
+             </Button>
+           </form>
+         )}
+       </div>
+     </Card>
+  );
+
   return (
-    <div className="flex flex-col h-screen bg-background">
-      <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <div className="flex items-center gap-3">
-              <PythonIcon className="h-8 w-8 text-primary" />
-              <h1 className="text-lg font-semibold md:text-2xl">PyRunner</h1>
+    <div className="flex flex-col h-screen bg-background text-sm">
+      <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[50px] lg:px-6">
+          <div className="flex items-center gap-2">
+              <PythonIcon className="h-6 w-6 text-primary" />
+              <h1 className="text-md font-semibold md:text-xl">PyRunner</h1>
           </div>
-          <div className="flex w-full items-center gap-2 md:gap-4 ml-auto">
+          <div className="flex w-full items-center gap-2 md:gap-2 ml-auto">
             <div className='ml-auto'>
-              <Button onClick={handleRunCode} size="sm"><Play className="mr-2 h-4 w-4" /> Run</Button>
+              <Button onClick={handleRunCode} size="sm"><Play className="mr-1 h-4 w-4" /> <span className="hidden sm:inline">Run</span></Button>
             </div>
             <div>
-              <Button onClick={handleCopyCode} size="sm" variant="secondary" className="hidden sm:flex"><Copy className="mr-2 h-4 w-4" /> Copy</Button>
+              <Button onClick={handleCopyCode} size="sm" variant="secondary" className="hidden sm:flex"><Copy className="mr-1 h-4 w-4" /> Copy</Button>
                <Button onClick={handleCopyCode} size="icon" variant="secondary" className="flex sm:hidden"><Copy className="h-4 w-4" /></Button>
             </div>
             <div>
-               <Button onClick={handleClear} size="sm" variant="secondary" className="hidden sm:flex"><Trash2 className="mr-2 h-4 w-4" /> Clear</Button>
+               <Button onClick={handleClear} size="sm" variant="secondary" className="hidden sm:flex"><Trash2 className="mr-1 h-4 w-4" /> Clear</Button>
                <Button onClick={handleClear} size="icon" variant="secondary" className="flex sm:hidden"><Trash2 className="h-4 w-4" /></Button>
             </div>
-            <Separator orientation="vertical" className="h-8" />
-            <CircleUser className="h-5 w-5" />
-            <Settings className="h-5 w-5" />
+            <Separator orientation="vertical" className="h-6" />
+            <div className="hidden md:flex items-center gap-2">
+              <CircleUser className="h-5 w-5" />
+              <Settings className="h-5 w-5" />
+            </div>
+            <Button onClick={() => setChatOpen(true)} size="sm" className="md:hidden"><Bot className="h-4 w-4" /></Button>
           </div>
       </header>
       <main className='flex-1 flex flex-col'>
@@ -152,7 +267,7 @@ export function PyRunner() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Enter your Python code here..."
-              className="font-code text-sm h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
+              className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
             />
         </ResizablePanel>
         <ResizableHandle withHandle />
@@ -161,9 +276,9 @@ export function PyRunner() {
             <ResizablePanel defaultSize={isMobile ? 50 : 60} minSize={isMobile ? 40 : 25}>
               <Tabs defaultValue="terminal" className="h-full flex flex-col">
                 <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="terminal"><TerminalIcon className="mr-2 h-4 w-4" />Terminal</TabsTrigger>
-                  <TabsTrigger value="tests"><TestTube className="mr-2 h-4 w-4" />Tests</TabsTrigger>
-                  <TabsTrigger value="comments"><Sparkles className="mr-2 h-4 w-4" />Comments</TabsTrigger>
+                  <TabsTrigger value="terminal"><TerminalIcon className="mr-1 h-4 w-4" />Terminal</TabsTrigger>
+                  <TabsTrigger value="tests"><TestTube className="mr-1 h-4 w-4" />Tests</TabsTrigger>
+                  <TabsTrigger value="comments"><Sparkles className="mr-1 h-4 w-4" />Comments</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="terminal" className="flex-grow mt-2">
@@ -173,7 +288,7 @@ export function PyRunner() {
                     </CardHeader>
                     <CardContent className="p-0">
                       <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
-                        <code className={`font-code text-sm whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
+                        <code className={`font-code text-xs whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
                           {output || 'Click "Run" to see the output of your code.'}
                         </code>
                       </pre>
@@ -191,9 +306,9 @@ export function PyRunner() {
                         <input type="hidden" name="code" value={code} />
                         <div className="space-y-2">
                           <Label htmlFor="documentation">Documentation (Optional)</Label>
-                          <Textarea id="documentation" name="documentation" placeholder="Provide documentation or context for your code..." className="font-code" />
+                          <Textarea id="documentation" name="documentation" placeholder="Provide documentation or context for your code..." className="font-code text-xs" />
                         </div>
-                        <Button type="submit" disabled={isTestCasesPending}>
+                        <Button type="submit" disabled={isTestCasesPending} size="sm">
                           {isTestCasesPending ? 'Generating...' : 'Generate Tests'}
                         </Button>
                       </form>
@@ -201,7 +316,7 @@ export function PyRunner() {
                          <div className="space-y-2 pt-4">
                           <Label>Generated Test Cases</Label>
                            <pre className="bg-muted rounded-md p-4 max-h-[40vh] overflow-auto">
-                             <code className="font-code text-sm whitespace-pre-wrap">{testCasesState.testCases}</code>
+                             <code className="font-code text-xs whitespace-pre-wrap">{testCasesState.testCases}</code>
                            </pre>
                          </div>
                       )}
@@ -219,85 +334,40 @@ export function PyRunner() {
                          <input type="hidden" name="pythonCode" value={code} />
                          <div className="space-y-2">
                            <Label htmlFor="projectRequirements">Project Requirements</Label>
-                           <Textarea id="projectRequirements" name="projectRequirements" placeholder="e.g., 'Add docstrings to all functions and explain complex logic.'" className="font-code" />
+                           <Textarea id="projectRequirements" name="projectRequirements" placeholder="e.g., 'Add docstrings to all functions...'" className="font-code text-xs" />
                          </div>
-                         <Button type="submit" disabled={isCommentsPending}>
+                         <Button type="submit" disabled={isCommentsPending} size="sm">
                           {isCommentsPending ? 'Generating...' : 'Generate Comments'}
                         </Button>
                        </form>
-                       {isCommentsPending && <p className="text-sm text-muted-foreground">Generating comments...</p>}
+                       {isCommentsPending && <p className="text-xs text-muted-foreground">Generating comments...</p>}
                     </CardContent>
                   </Card>
                 </TabsContent>
               </Tabs>
             </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={isMobile ? 50 : 40} minSize={isMobile ? 30 : 25}>
-               <Card className="h-full flex flex-col rounded-none border-0 border-t">
-                  <CardHeader>
-                    <CardTitle className='flex items-center gap-2'><Bot /> AI Coder</CardTitle>
-                    <CardDescription>Chat with Gemini to get help with your code.</CardDescription>
-                  </CardHeader>
-                  <CardContent ref={chatContainerRef} className="flex-1 overflow-y-auto pr-2 space-y-4">
-                    {chatHistory.length === 0 && (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <p>Ask me anything about your code!</p>
-                      </div>
-                    )}
-                    {chatHistory.map((msg, index) => (
-                      <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                        {msg.role === 'assistant' && <div className="p-2 rounded-full bg-primary"><Bot className="h-4 w-4 text-primary-foreground" /></div>}
-                        <div className={`rounded-lg px-3 py-2 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                          <p className="text-sm">{msg.content}</p>
-                        </div>
-                         {msg.role === 'user' && <div className="p-2 rounded-full bg-muted"><CircleUser className="h-4 w-4 text-muted-foreground" /></div>}
-                      </div>
-                    ))}
-                    {isChatPending && (
-                       <div className="flex items-start gap-3">
-                         <div className="p-2 rounded-full bg-primary"><Bot className="h-4 w-4 text-primary-foreground" /></div>
-                         <div className="rounded-lg px-3 py-2 bg-muted">
-                           <p className="text-sm animate-pulse">Thinking...</p>
-                         </div>
-                       </div>
-                    )}
-                  </CardContent>
-                  <div className="p-4 border-t">
-                    {!apiKey ? (
-                       <div className="space-y-2">
-                        <Label htmlFor="api-key">Enter your Gemini API Key</Label>
-                        <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => setApiKey(e.target.value)} />
-                        <p className="text-xs text-muted-foreground">You can get a key from Google AI Studio.</p>
-                       </div>
-                    ) : (
-                      <form id="chat-form" action={handleChatSubmit} className="relative">
-                        <input type="hidden" name="apiKey" value={apiKey} />
-                        <input type="hidden" name="chatHistory" value={JSON.stringify(chatHistory)} />
-                        <input type="hidden" name="code" value={code} />
-                        <Textarea
-                          name="prompt"
-                          placeholder="Ask a question..."
-                          className="pr-16 resize-none"
-                          rows={1}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              (e.target as HTMLTextAreaElement).form?.requestSubmit();
-                            }
-                          }}
-                        />
-                        <Button type="submit" size="icon" className="absolute top-1/2 -translate-y-1/2 right-3" disabled={isChatPending}>
-                          <Send className="h-4 w-4" />
-                        </Button>
-                      </form>
-                    )}
-                  </div>
-                </Card>
-            </ResizablePanel>
+            
+            {!isMobile && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={40} minSize={25}>
+                  <ChatPanel />
+                </ResizablePanel>
+              </>
+            )}
+
           </ResizablePanelGroup>
         </ResizablePanel>
       </ResizablePanelGroup>
       </main>
+
+       {isMobile && (
+        <Dialog open={isChatOpen} onOpenChange={setChatOpen}>
+          <DialogContent className="h-[80vh] w-[90vw] max-w-[90vw] flex flex-col p-0 gap-0">
+             <ChatPanel />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
