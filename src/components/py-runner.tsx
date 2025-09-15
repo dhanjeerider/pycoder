@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect, useRef } from 'react';
-import { useFormState } from 'react-dom';
+import { useState, useTransition, useEffect, useRef, useActionState } from 'react';
 import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput, Check, X, File as FileIcon, Plus, MoreVertical } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
@@ -123,19 +122,19 @@ export function PyRunner() {
     }));
   };
 
-  const [testCasesState, testCasesAction] = useFormState(handleGenerateTestCases, { message: '' });
+  const [testCasesState, testCasesAction] = useActionState(handleGenerateTestCases, { message: '' });
   const [isTestCasesPending, startTestCasesTransition] = useTransition();
   
-  const [commentsState, commentsAction] = useFormState(handleGenerateComments, { message: '' });
+  const [commentsState, commentsAction] = useActionState(handleGenerateComments, { message: '' });
   const [isCommentsPending, startCommentsTransition] = useTransition();
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const [chatState, chatAction] = useFormState(handleChat, { message: '' });
+  const [chatState, chatAction] = useActionState(handleChat, { message: '' });
   const [isChatPending, startChatTransition] = useTransition();
 
-  const [suggestionState, suggestionAction] = useFormState(handleSuggestCode, { message: '' });
+  const [suggestionState, suggestionAction] = useActionState(handleSuggestCode, { message: '' });
   const [isSuggestionPending, startSuggestionTransition] = useTransition();
 
   useEffect(() => {
@@ -334,7 +333,7 @@ export function PyRunner() {
          {!apiKey ? (
             <div className="space-y-2">
              <Label htmlFor="api-key">Enter your Gemini API Key</Label>
-             <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => handleApiKeyChange(e.target.value)} />
+             <Input id="api-key" type="password" placeholder="Your API Key" onBlur={(e) => handleApiKeyChange(e.target.value)} defaultValue={apiKey} />
              <p className="text-xs text-muted-foreground">You can get a key from Google AI Studio.</p>
             </div>
          ) : (
@@ -365,12 +364,14 @@ export function PyRunner() {
 
   const FileExplorer = () => (
     <Collapsible defaultOpen className="h-full flex flex-col">
-      <CollapsibleTrigger className="flex items-center justify-between p-2 bg-muted/50 border-b">
-        <span className="font-semibold text-sm">Explorer</span>
+      <div className="flex items-center justify-between p-2 bg-muted/50 border-b">
+        <CollapsibleTrigger asChild>
+            <span className="font-semibold text-sm cursor-pointer">Explorer</span>
+        </CollapsibleTrigger>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleNewFile}>
           <Plus className="h-4 w-4"/>
         </Button>
-      </CollapsibleTrigger>
+      </div>
       <CollapsibleContent className="flex-1 overflow-y-auto">
         {files.map(file => (
           <div key={file.id} className={`flex items-center justify-between pr-2 group ${activeFileId === file.id ? 'bg-primary/10' : ''}`}>
@@ -589,3 +590,4 @@ export function PyRunner() {
     </div>
   );
 }
+
