@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from 'react';
 import { useFormState } from 'react-dom';
-import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard } from 'lucide-react';
+import { Play, Trash2, Bot, TestTube, Sparkles, Send, Copy, PanelLeft, Settings, CircleUser, Terminal as TerminalIcon, Code, Keyboard, MessageSquare,FileOutput } from 'lucide-react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -80,7 +80,8 @@ function ChatMessageContent({ content, onInsertCode }: { content: string, onInse
 
 export function PyRunner() {
   const [code, setCode] = useState(initialCode);
-  const [output, setOutput] = useState('Click "Run" to see the output of your code. This is a simulated environment and does not execute real Python code.');
+  const [output, setOutput] = useState('Click "Run" to see the output of your code.');
+  const [consoleOutput, setConsoleOutput] = useState('This is a simulated console. Code is not actually executed.');
   const [isError, setIsError] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const { toast } = useToast();
@@ -136,11 +137,13 @@ export function PyRunner() {
   const handleRunCode = () => {
     setIsError(false);
     setOutput('');
+    setConsoleOutput('Executing code...');
     
     const trimmedCode = code.trim();
 
     if (trimmedCode === '') {
       setOutput('No code to execute.');
+      setConsoleOutput('Execution finished.');
       return;
     }
     
@@ -157,18 +160,23 @@ export function PyRunner() {
     }
 
     if (code.toLowerCase().includes('error')) {
-      setOutput('Traceback (most recent call last):\n  File "<stdin>", line 1, in <module>\nNameError: name \'error\' is not defined');
+      const errorMsg = 'Traceback (most recent call last):\n  File "<stdin>", line 1, in <module>\nNameError: name \'error\' is not defined';
+      setOutput(errorMsg);
+      setConsoleOutput('Execution finished with error.');
       setIsError(true);
     } else if (printedOutput) {
         setOutput(printedOutput);
+        setConsoleOutput('Execution finished.');
     } else {
-      setOutput(`Execution finished.\n---\n(This is a mock output. Python code is not actually executed.)`);
+      setOutput(`(No output from print statements)`);
+      setConsoleOutput(`Execution finished.\n---\n(This is a mock output. Python code is not actually executed.)`);
     }
   };
 
   const handleClear = () => {
     setCode('');
-    setOutput('Click "Run" to see the output of your code. This is a simulated environment and does not execute real Python code.');
+    setOutput('Click "Run" to see the output of your code.');
+    setConsoleOutput('This is a simulated console. Code is not actually executed.');
     setIsError(false);
   };
   
@@ -295,23 +303,40 @@ export function PyRunner() {
         <ResizablePanel defaultSize={40} minSize={isMobile ? 40: 30}>
           <ResizablePanelGroup direction="vertical">
             <ResizablePanel defaultSize={isMobile ? 50 : 60} minSize={isMobile ? 40 : 25}>
-              <Tabs defaultValue="terminal" className="h-full flex flex-col">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="terminal"><TerminalIcon className="mr-1 h-4 w-4" />Terminal</TabsTrigger>
+              <Tabs defaultValue="output" className="h-full flex flex-col">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="output"><FileOutput className="mr-1 h-4 w-4" />Output</TabsTrigger>
+                  <TabsTrigger value="console"><TerminalIcon className="mr-1 h-4 w-4" />Console</TabsTrigger>
                   <TabsTrigger value="tests"><TestTube className="mr-1 h-4 w-4" />Tests</TabsTrigger>
                   <TabsTrigger value="comments"><Sparkles className="mr-1 h-4 w-4" />Comments</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="terminal" className="flex-grow mt-2">
+                <TabsContent value="output" className="flex-grow mt-2">
                   <Card className="h-full rounded-none border-0 border-t">
                     <CardHeader className="py-2 px-4">
-                      <CardTitle className="text-base">Terminal</CardTitle>
-                      <CardDescription className="text-xs">This is a simulated terminal. Code is not actually executed.</CardDescription>
+                      <CardTitle className="text-base">Output</CardTitle>
+                      <CardDescription className="text-xs">Output from `print` statements in your code.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                       <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
                         <code className={`font-code text-xs whitespace-pre-wrap ${isError ? 'text-red-400' : 'text-foreground'}`}>
                           {output}
+                        </code>
+                      </pre>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="console" className="flex-grow mt-2">
+                  <Card className="h-full rounded-none border-0 border-t">
+                    <CardHeader className="py-2 px-4">
+                      <CardTitle className="text-base">Console</CardTitle>
+                      <CardDescription className="text-xs">Simulated execution logs. Code is not actually executed.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <pre className="bg-muted/50 rounded-none p-4 h-full overflow-auto">
+                        <code className="font-code text-xs whitespace-pre-wrap text-muted-foreground">
+                          {consoleOutput}
                         </code>
                       </pre>
                     </CardContent>
