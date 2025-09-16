@@ -1,5 +1,7 @@
 {
   "functions": {
-    "src/ai/flows/**/*.ts": {}
+    "src/ai/flows/**/*.ts": {
+      "maxDuration": 15
+    }
   }
 }
