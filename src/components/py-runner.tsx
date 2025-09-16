@@ -414,7 +414,6 @@ export function PyRunner() {
       <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[50px] lg:px-6">
           <div className="flex items-center gap-2">
               <PythonIcon className="h-6 w-6 text-primary" />
-              <h1 className="text-md font-semibold md:text-xl">PyRunner</h1>
           </div>
           <div className="flex w-full items-center gap-2 md:gap-2 ml-auto">
             <div className='ml-auto'>
