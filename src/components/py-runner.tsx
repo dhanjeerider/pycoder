@@ -444,14 +444,14 @@ export function PyRunner() {
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="Enter your Python code here..."
-                    className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4"
+                    className="font-code text-xs h-full w-full resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4 bg-transparent text-green-400"
                   />
                 </div>
                 {suggestion && (
                   <div className="bg-muted/70 p-4 border-t relative">
                     <Label className="text-xs font-bold text-muted-foreground">AI SUGGESTION</Label>
                     <pre className="font-code text-xs mt-2 bg-background p-2 rounded-md max-h-40 overflow-auto">
-                      <code>{suggestion}</code>
+                      <code className="text-green-400">{suggestion}</code>
                     </pre>
                     <div className="absolute top-3 right-3 flex gap-1">
                       <Button size="icon" className="h-7 w-7 bg-green-500 hover:bg-green-600" onClick={handleAcceptSuggestion}>
