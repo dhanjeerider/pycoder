@@ -104,9 +104,13 @@ export function PyRunner() {
   const [isChatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
-    const storedApiKey = localStorage.getItem('gemini-api-key');
-    if (storedApiKey) {
-      setApiKey(storedApiKey);
+    try {
+      const storedApiKey = localStorage.getItem('gemini-api-key');
+      if (storedApiKey) {
+        setApiKey(storedApiKey);
+      }
+    } catch (error) {
+      console.warn("Could not read from localStorage");
     }
   }, []);
 
@@ -231,7 +235,7 @@ export function PyRunner() {
     setChatHistory(prev => [...prev, { role: 'user', content: prompt }]);
     startChatTransition(() => chatAction(formData));
     const form = document.getElementById('chat-form') as HTMLFormElement;
-    form.reset();
+    if (form) form.reset();
   }
   
   const handleSuggestCodeClick = () => {
@@ -296,7 +300,11 @@ export function PyRunner() {
 
   const handleApiKeyChange = (key: string) => {
     setApiKey(key);
-    localStorage.setItem('gemini-api-key', key);
+    try {
+      localStorage.setItem('gemini-api-key', key);
+    } catch (error) {
+      console.warn("Could not write to localStorage");
+    }
   };
 
   const ChatPanel = () => (
@@ -366,7 +374,7 @@ export function PyRunner() {
     <Collapsible defaultOpen className="h-full flex flex-col">
       <div className="flex items-center justify-between p-2 bg-muted/50 border-b">
         <CollapsibleTrigger asChild>
-            <span className="font-semibold text-sm cursor-pointer">Explorer</span>
+          <span className="font-semibold text-sm cursor-pointer flex-1">Explorer</span>
         </CollapsibleTrigger>
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleNewFile}>
           <Plus className="h-4 w-4"/>
@@ -590,4 +598,3 @@ export function PyRunner() {
     </div>
   );
 }
-
