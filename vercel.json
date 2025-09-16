@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/ai/flows/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
+  }
+}
