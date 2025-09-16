@@ -22,18 +22,7 @@ const initialFiles = [
   {
     id: 1,
     name: 'main.py',
-    content: `def greet(name):
-    """
-    This function greets the person passed in as a parameter.
-    """
-    print(f"Hello, {name}!")
-
-greet("PyRunner User")
-# This is a simulated environment.
-# You can't install packages or run shell commands.
-# Try adding 'import sys' and 'print(sys.version)' to see a simulated output.
-# You can also try 'error' to see a simulated error.
-`,
+    content: ``,
   },
 ];
 
@@ -220,7 +209,7 @@ export function PyRunner() {
         setConsoleOutput('Execution finished.');
     } else {
       setOutput(`(No output from print statements)`);
-      setConsoleOutput(`Execution finished.\n---\n(This is a mock output. Python code is not actually executed.)`);
+      setConsoleOutput(`Execution finished.`);
     }
   };
 
